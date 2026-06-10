@@ -2,7 +2,8 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from lookup import get_category_fallback, lookup_price
+from fallbacks import get_category_fallback
+from lookup import lookup_price
 
 
 def _mock_openai_client():
