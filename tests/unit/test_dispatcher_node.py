@@ -34,9 +34,22 @@ async def test_dispatcher_node_success_sets_booking_confirmed():
     state = _make_state()
 
     mock_client = MagicMock()
-    mock_client.create_job = AsyncMock(return_value={"job_id": "JOB-98765"})
+    mock_client.create_job = AsyncMock(
+        return_value={
+            "job_id": "JOB-98765",
+            "booking_confirmed": True,
+            "confirmation_number": "JOB-98765",
+            "business_name": "Dallas Plumbing Co.",
+        }
+    )
 
-    with patch("nodes.dispatcher_node.DispatchClient", return_value=mock_client):
+    with (
+        patch("nodes.dispatcher_node.DispatchClient", return_value=mock_client),
+        patch("sms.Client", return_value=MagicMock()),
+        patch("sms.TWILIO_SID", "AC-test-sid"),
+        patch("sms.TWILIO_TOKEN", "test-token"),
+        patch("sms.TWILIO_FROM_NUMBER", "+12145550001"),
+    ):
         from nodes.dispatcher_node import dispatcher_node
 
         result = await dispatcher_node(state)
@@ -51,6 +64,7 @@ async def test_dispatcher_node_success_sets_booking_confirmed():
         "estimate_min": 200.0,
         "estimate_max": 450.0,
         "tech_id": "tech_1",
+        "business_name": "Dallas Plumbing Co.",
     })
     assert result.job_id == "JOB-98765"
     assert result.booking_confirmed is True
