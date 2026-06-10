@@ -55,6 +55,22 @@ class ServiceTitanAdapter(DispatchAdapterBase):
             "Content-Type": "application/json",
         }
 
+    def _capacity_headers(self, token: str) -> dict[str, str]:
+        return {
+            "Authorization": f"Bearer {token}",
+            "ST-App-Key": self.app_key,
+        }
+
+    def _tech_matches_category(self, slot: dict, category: str) -> bool:
+        expected_job_type = self._category_to_job_type(category)
+        if slot.get("jobTypeId") == expected_job_type:
+            return True
+        job_type_ids = slot.get("jobTypeIds", [])
+        if expected_job_type in job_type_ids:
+            return True
+        specialties = slot.get("specialties", slot.get("categories", []))
+        return category in specialties
+
     async def _step_create_customer(
         self,
         client: httpx.AsyncClient,
@@ -160,7 +176,31 @@ class ServiceTitanAdapter(DispatchAdapterBase):
         location: str,
         is_emergency: bool,
     ) -> list[dict]:
-        raise NotImplementedError("ServiceTitanAdapter.get_available_technicians — section 2.3")
+        token = await self.auth.get_token()
+        base = self.BASE_URL.format(tenant_id=self.st_tenant_id)
+
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(
+                f"{base}/dispatch/capacity",
+                headers=self._capacity_headers(token),
+                params={
+                    "startsOnOrAfter": datetime.utcnow().isoformat(),
+                    "endsOnOrBefore": (datetime.utcnow() + timedelta(hours=24)).isoformat(),
+                    "businessUnitId": self.business_unit_id,
+                },
+            )
+            resp.raise_for_status()
+            slots = resp.json()["data"]
+
+        return [
+            {
+                "tech_id": slot["technicianId"],
+                "name": slot["technicianName"],
+                "available_at": slot["start"],
+            }
+            for slot in slots
+            if slot["available"] and self._tech_matches_category(slot, category)
+        ]
 
     async def health_check(self) -> bool:
         try:

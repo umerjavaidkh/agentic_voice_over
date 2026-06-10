@@ -126,3 +126,91 @@ async def test_step_create_customer_posts_to_crm_endpoint():
     call_kwargs = mock_client.post.await_args.kwargs
     assert call_kwargs["json"]["name"] == "Ahmed Khan"
     assert call_kwargs["json"]["address"]["city"] == "Dubai"
+
+
+CAPACITY_SLOTS = [
+    {
+        "technicianId": "tech-plumber-1",
+        "technicianName": "Pat Plumber",
+        "start": "2026-06-10T14:00:00",
+        "available": True,
+        "jobTypeId": "jt-plumbing",
+    },
+    {
+        "technicianId": "tech-hvac-1",
+        "technicianName": "Hank HVAC",
+        "start": "2026-06-10T15:00:00",
+        "available": True,
+        "jobTypeId": "jt-hvac",
+    },
+    {
+        "technicianId": "tech-plumber-2",
+        "technicianName": "Unavail Plumber",
+        "start": "2026-06-10T16:00:00",
+        "available": False,
+        "jobTypeId": "jt-plumbing",
+    },
+    {
+        "technicianId": "tech-roof-1",
+        "technicianName": "Ray Roofer",
+        "start": "2026-06-10T17:00:00",
+        "available": True,
+        "jobTypeId": "jt-roofing",
+    },
+]
+
+
+def _mock_capacity_client(slots: list[dict]):
+    mock_response = MagicMock()
+    mock_response.json.return_value = {"data": slots}
+    mock_response.raise_for_status = MagicMock()
+
+    mock_client = AsyncMock()
+    mock_client.get = AsyncMock(return_value=mock_response)
+    mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+    mock_client.__aexit__ = AsyncMock(return_value=None)
+    return mock_client
+
+
+@pytest.mark.asyncio
+async def test_get_available_technicians_filters_by_category():
+    adapter = _adapter()
+    adapter.auth.get_token = AsyncMock(return_value="token-abc")
+    mock_client = _mock_capacity_client(CAPACITY_SLOTS)
+
+    with patch("adapters.service_titan.httpx.AsyncClient", return_value=mock_client):
+        results = await adapter.get_available_technicians(
+            tenant_id="t_abc123",
+            category="plumbing",
+            location="Dubai",
+            is_emergency=True,
+        )
+
+    assert results == [
+        {
+            "tech_id": "tech-plumber-1",
+            "name": "Pat Plumber",
+            "available_at": "2026-06-10T14:00:00",
+        }
+    ]
+    mock_client.get.assert_awaited_once()
+    assert mock_client.get.await_args.kwargs["params"]["businessUnitId"] == "bu-1"
+
+
+@pytest.mark.asyncio
+async def test_get_available_technicians_excludes_unavailable_and_wrong_category():
+    adapter = _adapter()
+    adapter.auth.get_token = AsyncMock(return_value="token-abc")
+    mock_client = _mock_capacity_client(CAPACITY_SLOTS)
+
+    with patch("adapters.service_titan.httpx.AsyncClient", return_value=mock_client):
+        results = await adapter.get_available_technicians(
+            tenant_id="t_abc123",
+            category="hvac",
+            location="Dubai",
+            is_emergency=False,
+        )
+
+    assert len(results) == 1
+    assert results[0]["tech_id"] == "tech-hvac-1"
+    assert results[0]["name"] == "Hank HVAC"
