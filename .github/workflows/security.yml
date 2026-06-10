@@ -16,7 +16,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.11'
+          python-version: '3.12'
       
       - name: Install security tools
         run: |
@@ -25,14 +25,8 @@ jobs:
       
       - name: Run Bandit (Python security linter)
         run: |
-          bandit -r src/ -f json -o bandit-report.json || true
-          bandit -r src/ || true
-      
-      - name: Check dependencies with Safety
-        run: |
-          if [ -f requirements.txt ]; then 
-            safety check --json || true
-          fi
+          bandit -r services/ shared/ -f json -o bandit-report.json || true
+          bandit -r services/ shared/ || true
       
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@master

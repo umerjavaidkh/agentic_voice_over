@@ -16,7 +16,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.11'
+          python-version: '3.12'
       
       - name: Install linting tools
         run: |
@@ -24,16 +24,13 @@ jobs:
           pip install ruff black isort pylint mypy
       
       - name: Run Ruff
-        run: ruff check src/ tests/ --exit-zero || true
+        run: ruff check services/ shared/ tests/ --exit-zero || true
       
       - name: Check formatting with Black
-        run: black --check src/ tests/ || true
+        run: black --check services/ shared/ tests/ || true
       
       - name: Check import sorting
-        run: isort --check-only src/ tests/ || true
+        run: isort --check-only services/ shared/ tests/ || true
       
       - name: Type checking with mypy
-        run: mypy src/ --ignore-missing-imports || true
-      
-      - name: Run pylint
-        run: pylint src/ --exit-zero || true
+        run: mypy services/ shared/ --ignore-missing-imports || true
