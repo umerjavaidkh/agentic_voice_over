@@ -5,30 +5,21 @@ import json
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_openai import ChatOpenAI
 
+from prompts import get_response_prompt, get_system_prompt
 from shared.models.agent_state import AgentState, ServiceCategory, UrgencyLevel
 
-INTENT_SYSTEM_PROMPT = """
-You are an expert at understanding home service problems from brief phone descriptions.
 
-Extract from the caller's message:
-1. problem_description: one clear sentence describing the issue
-2. service_category: one of [plumbing, hvac, roofing, electrical, general]
-3. appliance_type: specific appliance if mentioned (e.g. "water heater", "AC unit", "furnace")
-4. urgency_signal: one of [emergency, urgent, normal]
-   - emergency: active leak, no heat in winter, safety risk, "right now", "badly", "flooding"
-   - urgent: not working, broken, "as soon as possible"
-   - normal: maintenance, intermittent issue, "when you have time"
-
-Return ONLY valid JSON. No explanation.
-"""
-
-
-async def intent_node(state: AgentState) -> AgentState:
+async def intent_node(
+    state: AgentState,
+    *,
+    system_prompt: str | None = None,
+    address_follow_up: str | None = None,
+) -> AgentState:
     llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
     last_message = state.conversation_history[-1]["content"]
 
     response = await llm.ainvoke([
-        SystemMessage(content=INTENT_SYSTEM_PROMPT),
+        SystemMessage(content=system_prompt or get_system_prompt("intent")),
         HumanMessage(content=last_message),
     ])
 
@@ -39,6 +30,5 @@ async def intent_node(state: AgentState) -> AgentState:
     state.urgency_level = UrgencyLevel(data["urgency_signal"])
     state.is_emergency = state.urgency_level == UrgencyLevel.EMERGENCY
 
-    # Ask for address next
-    state.agent_response = "Got it. What's the address where you need the service?"
+    state.agent_response = address_follow_up or get_response_prompt("intent")
     return state
