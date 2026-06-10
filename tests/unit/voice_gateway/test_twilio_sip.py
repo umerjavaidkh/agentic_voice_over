@@ -21,14 +21,28 @@ def test_handle_incoming_builds_sip_dial_twiml():
 @pytest.fixture
 def client(monkeypatch):
     monkeypatch.setenv("LIVEKIT_SIP_DOMAIN", "sip.livekit.cloud")
+    monkeypatch.setenv("LIVEKIT_URL", "wss://lk.example.com")
+    monkeypatch.setenv("LIVEKIT_API_KEY", "lk-key")
+    monkeypatch.setenv("LIVEKIT_API_SECRET", "lk-secret")
+    monkeypatch.setenv("DEEPGRAM_API_KEY", "dg-key")
+    monkeypatch.setenv("ELEVENLABS_API_KEY", "el-key")
+
     import importlib
+    from unittest.mock import AsyncMock, MagicMock, patch
 
     import config
     import main
 
     importlib.reload(config)
     importlib.reload(main)
-    return TestClient(main.app)
+
+    mock_room_manager = MagicMock()
+    mock_room_manager.create_call_room = AsyncMock(return_value="t_abc_CA1234567890")
+    mock_room_manager.close_room = AsyncMock()
+
+    with patch.object(main, "RoomManager", return_value=mock_room_manager):
+        with TestClient(main.app) as test_client:
+            yield test_client
 
 
 def test_call_incoming_returns_twiml(client):
@@ -54,13 +68,18 @@ def test_call_incoming_requires_tenant_id(client):
 def test_call_incoming_503_when_sip_domain_missing(monkeypatch):
     monkeypatch.delenv("LIVEKIT_SIP_DOMAIN", raising=False)
     import importlib
+    from unittest.mock import AsyncMock, MagicMock, patch
 
     import config
     import main
 
     importlib.reload(config)
     importlib.reload(main)
-    client = TestClient(main.app)
+
+    mock_room_manager = MagicMock()
+    mock_room_manager.create_call_room = AsyncMock()
+    with patch.object(main, "RoomManager", return_value=mock_room_manager):
+        client = TestClient(main.app)
 
     response = client.post(
         "/call/incoming?tenant_id=t_abc",
