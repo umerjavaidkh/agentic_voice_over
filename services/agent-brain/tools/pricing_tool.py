@@ -3,11 +3,11 @@
 from shared.models.agent_state import AgentState
 
 
-async def run_pricing_tool(state: AgentState) -> AgentState:
+async def run_pricing_tool(state: AgentState) -> dict:
     from pricing_service.client import PricingClient
 
     if not state.problem_description:
-        return state
+        return {}
 
     result = await PricingClient().lookup(
         description=state.problem_description,
@@ -15,7 +15,8 @@ async def run_pricing_tool(state: AgentState) -> AgentState:
         tenant_id=state.tenant_id,
     )
 
-    state.estimate_min = result.min_price
-    state.estimate_max = result.max_price
-    state.pricing_confidence = result.confidence
-    return state
+    return {
+        "estimate_min": result.min_price,
+        "estimate_max": result.max_price,
+        "pricing_confidence": result.confidence,
+    }

@@ -4,9 +4,9 @@ from shared.models.agent_state import AgentState
 from shared.utils.geo import find_nearest_technician
 
 
-async def run_geo_tool(state: AgentState) -> AgentState:
+async def run_geo_tool(state: AgentState) -> dict:
     if not state.address:
-        return state
+        return {}
 
     tech = await find_nearest_technician(
         address=state.address,
@@ -15,10 +15,11 @@ async def run_geo_tool(state: AgentState) -> AgentState:
         is_emergency=state.is_emergency,
     )
 
-    state.assigned_technician = tech
-    state.dispatch_eta = (
-        f"within {tech.eta_minutes} minutes"
-        if state.is_emergency
-        else "during your scheduled window"
-    )
-    return state
+    return {
+        "assigned_technician": tech,
+        "dispatch_eta": (
+            f"within {tech.eta_minutes} minutes"
+            if state.is_emergency
+            else "during your scheduled window"
+        ),
+    }

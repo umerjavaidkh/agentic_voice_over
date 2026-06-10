@@ -28,9 +28,7 @@ async def test_run_pricing_tool_returns_unchanged_when_problem_missing():
         result = await run_pricing_tool(state)
 
     mock_client_cls.assert_not_called()
-    assert result.estimate_min is None
-    assert result.estimate_max is None
-    assert result.pricing_confidence == 0.0
+    assert result == {}
 
 
 @pytest.mark.asyncio
@@ -55,9 +53,11 @@ async def test_run_pricing_tool_updates_estimates():
         category=ServiceCategory.PLUMBING,
         tenant_id="t_abc",
     )
-    assert result.estimate_min == 200.0
-    assert result.estimate_max == 450.0
-    assert result.pricing_confidence == 0.92
+    assert result == {
+        "estimate_min": 200.0,
+        "estimate_max": 450.0,
+        "pricing_confidence": 0.92,
+    }
 
 
 @pytest.mark.asyncio
@@ -70,8 +70,7 @@ async def test_run_geo_tool_returns_unchanged_when_address_missing():
         result = await run_geo_tool(state)
 
     mock_geo.assert_not_awaited()
-    assert result.assigned_technician is None
-    assert result.dispatch_eta is None
+    assert result == {}
 
 
 @pytest.mark.asyncio
@@ -92,8 +91,10 @@ async def test_run_geo_tool_assigns_technician_emergency():
 
         result = await run_geo_tool(state)
 
-    assert result.assigned_technician == tech
-    assert result.dispatch_eta == "within 45 minutes"
+    assert result == {
+        "assigned_technician": tech,
+        "dispatch_eta": "within 45 minutes",
+    }
 
 
 @pytest.mark.asyncio
@@ -114,5 +115,7 @@ async def test_run_geo_tool_assigns_technician_scheduled():
 
         result = await run_geo_tool(state)
 
-    assert result.assigned_technician == tech
-    assert result.dispatch_eta == "during your scheduled window"
+    assert result == {
+        "assigned_technician": tech,
+        "dispatch_eta": "during your scheduled window",
+    }
