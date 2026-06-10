@@ -1,0 +1,49 @@
+---
+description: Git PR workflow — always branch from updated main, PR new branch → main
+alwaysApply: true
+---
+
+# Git PR Workflow
+
+When the user asks to create a pull request (or at the end of a feature slice that should be merged):
+
+## Branch strategy
+
+1. **Update `main` first**
+   ```bash
+   git fetch origin
+   git checkout main
+   git pull origin main
+   ```
+
+2. **Create a new feature branch from updated `main`** — never open a PR from a stale or reused branch that contains already-merged commits.
+   ```bash
+   git checkout -b feat/<short-topic> origin/main
+   ```
+
+3. **Move work onto the new branch**
+   - If work is only local: commit on the new branch.
+   - If work exists on an old branch: cherry-pick only the relevant commits onto the new branch (do not merge the old branch wholesale).
+
+4. **Push the new branch**
+   ```bash
+   git push -u origin feat/<short-topic>
+   ```
+
+5. **Open PR: new branch → `main`**
+   - Base: `main`
+   - Head: `feat/<short-topic>`
+   - Use `gh pr create --base main --head feat/<short-topic>`
+   - If `gh` is not authenticated, provide the compare URL:
+     `https://github.com/<owner>/<repo>/compare/main...feat/<short-topic>?expand=1`
+
+## PR content
+
+- Title: concise, reflects the **net diff vs `main`** (not the whole branch history).
+- Description: summary, file/area table, architecture notes if relevant, test plan with checkboxes.
+- Verify with `git diff origin/main...HEAD --stat` (three-dot) before writing the PR body.
+
+## Do not
+
+- Open PRs from `feat/agent-state-schema` or other long-lived branches after their work has landed in `main`.
+- Use `git diff` that includes already-merged agent-brain/voice-gateway changes when the PR is pricing-only (or similar).
