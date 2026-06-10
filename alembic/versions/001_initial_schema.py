@@ -1,11 +1,11 @@
-"""initial_schema — tenants, calls, conversation_turns, technicians, pricing_catalog
+"""initial_schema — tenants, calls, conversation_turns, technicians
 
 Revision ID: 001_initial_schema
 Revises:
 Create Date: 2026-06-10
 
-Enables pgvector and creates all five Postgres tables from docs/06_Data_Layer.Plan.md
-section 1 (pricing_catalog from docs/04_Pricing_Engine.Plan.md section 2.1).
+Enables pgvector and creates core tables from docs/06_Data_Layer.Plan.md section 1.
+pricing_catalog is in 002_pricing_catalog (docs/04_Pricing_Engine.Plan.md section 2.1).
 """
 
 from typing import Sequence, Union
@@ -115,43 +115,8 @@ def upgrade() -> None:
         CREATE INDEX technicians_tenant_idx ON technicians (tenant_id, is_active)
     """)
 
-    op.execute("""
-        CREATE TABLE pricing_catalog (
-            id                      UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-            tenant_id               TEXT NOT NULL,
-            service_name            TEXT NOT NULL,
-            service_category        TEXT NOT NULL,
-            description             TEXT NOT NULL,
-            min_price               DECIMAL(10,2) NOT NULL,
-            max_price               DECIMAL(10,2) NOT NULL,
-            unit                    TEXT DEFAULT 'job',
-            typical_duration_hours  DECIMAL(4,2),
-            is_emergency_eligible   BOOLEAN DEFAULT true,
-            emergency_surcharge_pct DECIMAL(5,2) DEFAULT 25.0,
-            embedding               vector(1536),
-            created_at              TIMESTAMPTZ DEFAULT NOW(),
-            updated_at              TIMESTAMPTZ DEFAULT NOW()
-        )
-    """)
-
-    op.execute("""
-        CREATE INDEX pricing_catalog_embedding_idx
-            ON pricing_catalog
-            USING ivfflat (embedding vector_cosine_ops)
-            WITH (lists = 100)
-    """)
-
-    op.execute("""
-        CREATE INDEX pricing_catalog_tenant_idx
-            ON pricing_catalog (tenant_id, service_category)
-    """)
-
 
 def downgrade() -> None:
-    op.execute("DROP INDEX IF EXISTS pricing_catalog_tenant_idx")
-    op.execute("DROP INDEX IF EXISTS pricing_catalog_embedding_idx")
-    op.execute("DROP TABLE IF EXISTS pricing_catalog")
-
     op.execute("DROP INDEX IF EXISTS technicians_tenant_idx")
     op.execute("DROP TABLE IF EXISTS technicians")
 
