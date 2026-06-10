@@ -48,10 +48,19 @@ def graph_mocks():
     )
 
     mock_dispatch_client = MagicMock()
-    mock_dispatch_client.create_job = AsyncMock(return_value={"job_id": "JOB-12345"})
+    mock_dispatch_client.create_job = AsyncMock(
+        return_value={
+            "job_id": "JOB-12345",
+            "booking_confirmed": True,
+            "confirmation_number": "JOB-12345",
+            "business_name": "Dallas Plumbing Co.",
+        }
+    )
 
     mock_llm = MagicMock()
     mock_llm.ainvoke = AsyncMock(return_value=_intent_llm_response())
+
+    mock_twilio_client = MagicMock()
 
     with (
         patch("nodes.intent_node.ChatOpenAI", return_value=mock_llm),
@@ -59,6 +68,10 @@ def graph_mocks():
         patch("pricing_service.client.PricingClient", return_value=mock_pricing_client),
         patch("tools.geo_tool.find_nearest_technician", new_callable=AsyncMock, return_value=tech),
         patch("nodes.dispatcher_node.DispatchClient", return_value=mock_dispatch_client),
+        patch("sms.Client", return_value=mock_twilio_client),
+        patch("sms.TWILIO_SID", "AC-test-sid"),
+        patch("sms.TWILIO_TOKEN", "test-token"),
+        patch("sms.TWILIO_FROM_NUMBER", "+12145550001"),
     ):
         yield {
             "dispatch_client": mock_dispatch_client,
