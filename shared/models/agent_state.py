@@ -32,8 +32,8 @@ class Technician(BaseModel):
 class AgentState(BaseModel):
     # Call metadata
     call_sid: str
-    tenant_id: str
-    caller_phone: str
+    tenant_id: str = ""
+    caller_phone: str = ""
     conversation_history: List[dict] = []  # [{role, content}]
     turn_count: int = 0
 

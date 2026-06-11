@@ -26,20 +26,27 @@ services:
     command: azurite --blobHost 0.0.0.0 --queueHost 0.0.0.0 --tableHost 0.0.0.0 --skipApiVersionCheck
 
   voice-gateway:
-    build: ./services/voice-gateway
+    build:
+      context: .
+      dockerfile: services/voice-gateway/Dockerfile
     ports: ["8000:8000"]
     env_file: .env.dev
     environment:
       AGENT_BRAIN_URL: http://agent-brain:8001
-    depends_on: [redis, azurite]
+      POSTGRES_DSN: postgresql://devuser:devpass@postgres:5432/voice_agent_dev
+      REDIS_URL: redis://redis:6379
+    depends_on: [redis, azurite, postgres, agent-brain]
 
   agent-brain:
-    build: ./services/agent-brain
+    build:
+      context: .
+      dockerfile: services/agent-brain/Dockerfile
     ports: ["8001:8001"]
     env_file: .env.dev
     environment:
       PRICING_SERVICE_URL: http://pricing-service:8002
       DISPATCH_ADAPTER_URL: http://dispatch-adapter:8003
+      REDIS_URL: redis://redis:6379
     depends_on: [postgres, redis]
 
   pricing-service:

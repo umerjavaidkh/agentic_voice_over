@@ -2,10 +2,13 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
-COPY requirements.txt .
+COPY services/agent-brain/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY . .
+COPY shared /app/shared
+COPY services/agent-brain /app
+
+ENV PYTHONPATH=/app
 
 RUN useradd -m -u 1001 appuser && chown -R appuser /app
 USER appuser

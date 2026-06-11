@@ -21,7 +21,14 @@ class ElevenLabsTTS:
     VOICE_ID = "21m00Tcm4TlvDq8ikWAM"  # Professional, warm male voice
     MODEL_ID = "eleven_turbo_v2_5"  # Lowest latency model
 
-    def __init__(self, api_key: str):
+    def __init__(
+        self,
+        api_key: str,
+        voice_id: str | None = None,
+        model_id: str | None = None,
+    ):
+        self.voice_id = voice_id or self.VOICE_ID
+        self.model_id = model_id or self.MODEL_ID
         self.client = ElevenLabs(api_key=api_key)
         if not hasattr(self.client.text_to_speech, "convert_as_stream"):
             self.client.text_to_speech.convert_as_stream = (
@@ -31,9 +38,9 @@ class ElevenLabsTTS:
     async def stream_to_livekit(self, text: str, lk_audio_track):
         """Stream TTS audio chunks directly into LiveKit track."""
         audio_stream = self.client.text_to_speech.convert_as_stream(
-            voice_id=self.VOICE_ID,
+            voice_id=self.voice_id,
             text=text,
-            model_id=self.MODEL_ID,
+            model_id=self.model_id,
             voice_settings=VoiceSettings(
                 stability=0.6,
                 similarity_boost=0.85,

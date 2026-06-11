@@ -1,3 +1,4 @@
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -27,6 +28,18 @@ class Settings(BaseSettings):
     livekit_api_key: str = ""
     livekit_api_secret: str = ""
     livekit_sip_domain: str = ""
+
+    postgres_dsn: str = Field(
+        default="postgresql://devuser:devpass@localhost:5432/voice_agent_dev",
+        validation_alias="POSTGRES_DSN",
+    )
+    redis_url: str = Field(default="redis://localhost:6379", validation_alias="REDIS_URL")
+
+    agent_brain_url: str = Field(
+        default="http://agent-brain:8001",
+        validation_alias="AGENT_BRAIN_URL",
+    )
+    business_name: str = Field(default="Your Home Services", validation_alias="BUSINESS_NAME")
 
 
 settings = Settings()
