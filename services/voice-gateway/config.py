@@ -15,10 +15,15 @@ class Settings(BaseSettings):
     twilio_account_sid: str = ""
     twilio_auth_token: str = ""
 
-    # Deepgram — Nova-3 streaming STT (section 4)
+    # Deepgram — Nova-3 STT + Aura TTS
     deepgram_api_key: str = ""
+    deepgram_tts_model: str = Field(
+        default="aura-2-thalia-en",
+        validation_alias="DEEPGRAM_TTS_MODEL",
+    )
+    tts_provider: str = Field(default="deepgram", validation_alias="TTS_PROVIDER")
 
-    # ElevenLabs — Turbo v2.5 streaming TTS (section 6)
+    # ElevenLabs — Turbo v2.5 streaming TTS (requires paid plan for library voices)
     elevenlabs_api_key: str = ""
     elevenlabs_voice_id: str = "21m00Tcm4TlvDq8ikWAM"
     elevenlabs_model_id: str = "eleven_turbo_v2_5"
@@ -28,6 +33,18 @@ class Settings(BaseSettings):
     livekit_api_key: str = ""
     livekit_api_secret: str = ""
     livekit_sip_domain: str = ""
+    livekit_sip_trunk_id: str = Field(
+        default="",
+        validation_alias="LIVEKIT_SIP_TRUNK_ID",
+    )
+    livekit_sip_username: str = Field(
+        default="",
+        validation_alias="LIVEKIT_SIP_USERNAME",
+    )
+    livekit_sip_password: str = Field(
+        default="",
+        validation_alias="LIVEKIT_SIP_PASSWORD",
+    )
 
     postgres_dsn: str = Field(
         default="postgresql://devuser:devpass@localhost:5432/voice_agent_dev",
@@ -40,6 +57,18 @@ class Settings(BaseSettings):
         validation_alias="AGENT_BRAIN_URL",
     )
     business_name: str = Field(default="Your Home Services", validation_alias="BUSINESS_NAME")
+
+    # twilio_stream = Media Streams WebSocket (recommended for dev)
+    # livekit_sip = Dial SIP into LiveKit room
+    voice_transport: str = Field(
+        default="twilio_stream",
+        validation_alias="VOICE_TRANSPORT",
+    )
+    public_base_url: str = Field(
+        default="",
+        validation_alias="PUBLIC_BASE_URL",
+        description="Public HTTPS base URL (ngrok) for Twilio Media Streams WebSocket",
+    )
 
 
 settings = Settings()

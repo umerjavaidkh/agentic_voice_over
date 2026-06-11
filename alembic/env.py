@@ -1,6 +1,6 @@
 """Alembic migration environment.
 
-Reads DATABASE_URL from the environment (falls back to alembic.ini sqlalchemy.url).
+Reads DATABASE_URL or POSTGRES_DSN from the environment (falls back to alembic.ini).
 Migrations use raw SQL via op.execute() — no SQLAlchemy models required.
 """
 
@@ -19,7 +19,11 @@ target_metadata = None
 
 
 def get_url() -> str:
-    return os.getenv("DATABASE_URL", config.get_main_option("sqlalchemy.url"))
+    return (
+        os.getenv("DATABASE_URL")
+        or os.getenv("POSTGRES_DSN")
+        or config.get_main_option("sqlalchemy.url")
+    )
 
 
 def run_migrations_offline() -> None:

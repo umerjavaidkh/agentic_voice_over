@@ -14,11 +14,11 @@ async def test_create_call_room_returns_room_name():
 
     with patch("room_manager.livekit_api.LiveKitAPI", return_value=mock_client) as mock_api:
         manager = RoomManager("wss://lk.example.com", "api-key", "api-secret")
-        room_name = await manager.create_call_room("CA123456", "t_abc")
+        room_name, dispatch_rule_id = await manager.create_call_room("CA123456", "t_abc")
 
     assert room_name == "t_abc_CA123456"
-    assert isinstance(room_name, str)
-    mock_api.assert_called_once_with("wss://lk.example.com", "api-key", "api-secret")
+    assert dispatch_rule_id == ""
+    mock_api.assert_called_once_with("https://lk.example.com", "api-key", "api-secret")
     mock_room_service.create_room.assert_awaited_once()
     request = mock_room_service.create_room.call_args[0][0]
     assert request.name == "t_abc_CA123456"

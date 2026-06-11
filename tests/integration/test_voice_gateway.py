@@ -19,7 +19,9 @@ def voice_gateway_client(monkeypatch):
     monkeypatch.setenv("ELEVENLABS_API_KEY", "el-key")
 
     mock_room_manager = MagicMock()
-    mock_room_manager.create_call_room = AsyncMock(return_value="t_abc_CA1234567890")
+    mock_room_manager.create_call_room = AsyncMock(
+        return_value=("t_abc_CA1234567890", "SDR_test")
+    )
     mock_room_manager.close_room = AsyncMock()
 
     mock_redis = MagicMock()
@@ -40,6 +42,7 @@ def voice_gateway_client(monkeypatch):
     mock_pipeline = MagicMock()
     mock_pipeline.run = AsyncMock()
     mock_pipeline.stop = MagicMock()
+    mock_pipeline.wait_ready = AsyncMock()
 
     with (
         patch.object(main, "RoomManager", return_value=mock_room_manager),
@@ -96,7 +99,8 @@ def test_call_status_completed_closes_room(voice_gateway_client):
 
     assert response.status_code == 204
     voice_gateway_client.mock_room_manager.close_room.assert_awaited_once_with(
-        "t_abc_CA1234567890"
+        "t_abc_CA1234567890",
+        "SDR_test",
     )
     assert "CA1234567890" not in voice_gateway_client.app.state.active_calls
 

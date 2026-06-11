@@ -48,12 +48,21 @@ async def ws_call(websocket: WebSocket, call_sid: str):
                 logger.warning("transcript missing tenant_id", extra={"call_sid": call_sid})
                 continue
 
-            response_text = await session_runner.process_turn(
-                tenant_id,
-                call_sid,
-                data["text"],
-                caller_phone=data.get("caller_phone", ""),
-            )
+            try:
+                response_text = await session_runner.process_turn(
+                    tenant_id,
+                    call_sid,
+                    data["text"],
+                    caller_phone=data.get("caller_phone", ""),
+                )
+            except Exception:
+                logger.exception(
+                    "failed to process turn",
+                    extra={"call_sid": call_sid, "tenant_id": tenant_id},
+                )
+                response_text = (
+                    "I'm sorry, I had trouble processing that. Could you repeat?"
+                )
             await websocket.send_json(
                 {
                     "type": "speak",

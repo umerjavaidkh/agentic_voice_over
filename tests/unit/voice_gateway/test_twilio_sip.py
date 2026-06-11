@@ -12,7 +12,7 @@ def test_handle_incoming_builds_sip_dial_twiml():
         livekit_sip_domain="sip.livekit.cloud",
     )
 
-    assert 'sip:t_abc_CA1234567890@sip.livekit.cloud' in twiml
+    assert "sip:t_abc_CA1234567890@sip.livekit.cloud;transport=tls" in twiml
     assert "<Dial>" in twiml
     assert "<Sip>" in twiml
 
@@ -31,7 +31,9 @@ def client(monkeypatch):
     main = load_voice_gateway_main()
 
     mock_room_manager = MagicMock()
-    mock_room_manager.create_call_room = AsyncMock(return_value="t_abc_CA1234567890")
+    mock_room_manager.create_call_room = AsyncMock(
+        return_value=("t_abc_CA1234567890", "SDR_test")
+    )
     mock_room_manager.close_room = AsyncMock()
 
     mock_redis = MagicMock()
@@ -50,6 +52,7 @@ def client(monkeypatch):
     mock_pipeline = MagicMock()
     mock_pipeline.run = AsyncMock()
     mock_pipeline.stop = MagicMock()
+    mock_pipeline.wait_ready = AsyncMock()
 
     with (
         patch.object(main, "RoomManager", return_value=mock_room_manager),
@@ -69,7 +72,7 @@ def test_call_incoming_returns_twiml(client):
 
     assert response.status_code == 200
     assert response.headers["content-type"].startswith("text/xml")
-    assert "sip:t_abc_CA1234567890@sip.livekit.cloud" in response.text
+    assert "sip:t_abc_CA1234567890@sip.livekit.cloud;transport=tls" in response.text
 
 
 def test_call_incoming_requires_tenant_id(client):

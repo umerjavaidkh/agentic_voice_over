@@ -47,7 +47,7 @@ services:
       PRICING_SERVICE_URL: http://pricing-service:8002
       DISPATCH_ADAPTER_URL: http://dispatch-adapter:8003
       REDIS_URL: redis://redis:6379
-    depends_on: [postgres, redis]
+    depends_on: [postgres, redis, pricing-service]
 
   pricing-service:
     build: ./services/pricing-service
