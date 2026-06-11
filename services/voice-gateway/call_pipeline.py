@@ -9,7 +9,7 @@ from call_session import CallSession
 from livekit_bot import LiveKitBot, create_bot_token
 from scripts import GREETING_TEMPLATE, format_script
 from stt_client import DeepgramSTT
-from tts_client import ElevenLabsTTS
+from tts_client import create_tts
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +33,8 @@ class CallPipeline:
         elevenlabs_api_key: str,
         elevenlabs_voice_id: str,
         elevenlabs_model_id: str,
+        tts_provider: str = "deepgram",
+        deepgram_tts_model: str = "aura-2-thalia-en",
         on_finished: Optional[Callable[[], Awaitable[None]]] = None,
     ):
         self.call_sid = call_sid
@@ -48,12 +50,18 @@ class CallPipeline:
         self.elevenlabs_api_key = elevenlabs_api_key
         self.elevenlabs_voice_id = elevenlabs_voice_id
         self.elevenlabs_model_id = elevenlabs_model_id
+        self.tts_provider = tts_provider
+        self.deepgram_tts_model = deepgram_tts_model
         self._on_finished = on_finished
         self._stop = asyncio.Event()
+        self._ready = asyncio.Event()
         self._stt_task: Optional[asyncio.Task] = None
 
     def stop(self) -> None:
         self._stop.set()
+
+    async def wait_ready(self, timeout: float = 15.0) -> None:
+        await asyncio.wait_for(self._ready.wait(), timeout=timeout)
 
     async def run(self) -> None:
         agent_client: Optional[AgentBrainClient] = None
@@ -75,10 +83,14 @@ class CallPipeline:
                     self.stop()
 
             outbound = await bot.publish_agent_audio()
-            tts = ElevenLabsTTS(
-                self.elevenlabs_api_key,
-                voice_id=self.elevenlabs_voice_id,
-                model_id=self.elevenlabs_model_id,
+            self._ready.set()
+            tts = create_tts(
+                provider=self.tts_provider,
+                deepgram_api_key=self.deepgram_api_key,
+                deepgram_tts_model=self.deepgram_tts_model,
+                elevenlabs_api_key=self.elevenlabs_api_key,
+                elevenlabs_voice_id=self.elevenlabs_voice_id,
+                elevenlabs_model_id=self.elevenlabs_model_id,
             )
             stt = DeepgramSTT(self.deepgram_api_key)
 
@@ -105,13 +117,17 @@ class CallPipeline:
                 send_to_agent=handle_user_turn,
             )
 
+            caller_track = await bot.wait_for_caller_audio()
+            logger.info(
+                "caller audio connected",
+                extra={"call_sid": self.call_sid, "room": self.room_name},
+            )
+
             greeting = format_script(
                 GREETING_TEMPLATE,
                 business_name=self.business_name,
             )
             await speak(greeting)
-
-            caller_track = await bot.wait_for_caller_audio()
             self._stt_task = asyncio.create_task(
                 self._run_stt(stt, bot, caller_track, session)
             )
@@ -119,6 +135,17 @@ class CallPipeline:
             await self._stop.wait()
         except asyncio.CancelledError:
             raise
+        except TimeoutError:
+            if self._stop.is_set():
+                logger.info(
+                    "call ended before caller audio connected",
+                    extra={"call_sid": self.call_sid, "tenant_id": self.tenant_id},
+                )
+            else:
+                logger.error(
+                    "caller never joined LiveKit room — check SIP dispatch rule",
+                    extra={"call_sid": self.call_sid, "room": self.room_name},
+                )
         except Exception:
             logger.exception(
                 "call pipeline failed",

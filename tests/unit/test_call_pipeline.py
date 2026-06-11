@@ -54,12 +54,13 @@ async def test_pipeline_plays_greeting_and_forwards_transcript(pipeline):
         patch("call_pipeline.create_bot_token", return_value="token"),
         patch("call_pipeline.LiveKitBot", return_value=mock_bot),
         patch("call_pipeline.AgentBrainClient", return_value=mock_agent),
-        patch("call_pipeline.ElevenLabsTTS", return_value=mock_tts),
+        patch("call_pipeline.create_tts", return_value=mock_tts),
         patch("call_pipeline.DeepgramSTT", return_value=mock_stt),
     ):
         await pipeline.run()
 
     assert mock_agent.connect.await_count == 1
+    mock_bot.wait_for_caller_audio.assert_awaited_once()
     greeting_call = mock_tts.stream_to_livekit.await_args_list[0]
     assert "Test Plumbing" in greeting_call.args[0]
     mock_stt.stream.assert_awaited_once()

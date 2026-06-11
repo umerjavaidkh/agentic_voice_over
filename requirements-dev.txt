@@ -1,0 +1,3 @@
+# Host-side dev tools (migrations, etc.) — not used inside service containers
+alembic>=1.13
+psycopg2-binary>=2.9

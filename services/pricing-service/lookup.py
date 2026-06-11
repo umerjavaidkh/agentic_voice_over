@@ -9,6 +9,11 @@ EMBEDDING_MODEL = PricingEmbedder.MODEL
 MIN_SIMILARITY = 0.70
 
 
+def _vector_literal(embedding: list[float]) -> str:
+    """asyncpg/pgvector expects vector bind values as a string literal."""
+    return "[" + ",".join(str(x) for x in embedding) + "]"
+
+
 async def lookup_price(
     description: str,
     category: Optional[str],
@@ -22,7 +27,7 @@ async def lookup_price(
         input=description,
         model=EMBEDDING_MODEL,
     )
-    query_embedding = embed_response.data[0].embedding
+    query_embedding = _vector_literal(embed_response.data[0].embedding)
 
     category_filter = "AND service_category = $3" if category else ""
     params = [tenant_id, query_embedding]

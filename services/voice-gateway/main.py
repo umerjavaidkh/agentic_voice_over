@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from typing import Any
 
-from fastapi import FastAPI, Form, Query, Request
+from fastapi import FastAPI, Form, Query, Request, WebSocket
 from fastapi.responses import PlainTextResponse, Response
 
 from call_finisher import download_twilio_recording, finalize_call
@@ -14,7 +14,9 @@ from room_manager import RoomManager
 from shared.clients.call_records import create_call_record
 from shared.clients.db import DatabasePool
 from shared.clients.redis_client import RedisClient
+from twilio_media_pipeline import TwilioMediaPipeline
 from twilio_sip import handle_incoming
+from twilio_stream import handle_incoming_stream, public_base_to_ws_url
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +27,7 @@ async def lifespan(app: FastAPI):
         settings.livekit_url,
         settings.livekit_api_key,
         settings.livekit_api_secret,
+        sip_trunk_id=settings.livekit_sip_trunk_id,
     )
     app.state.redis = RedisClient(settings.redis_url)
     app.state.db = DatabasePool(settings.postgres_dsn)
@@ -58,7 +61,41 @@ async def call_incoming(
     From: str = Form(default=""),
     tenant_id: str = Query(..., description="Tenant ID from webhook URL"),
 ):
-    """New inbound call — spawn LiveKit room, wire voice pipeline, return TwiML."""
+    """New inbound call — return TwiML and wire the voice pipeline."""
+    if settings.voice_transport == "twilio_stream":
+        if not settings.public_base_url:
+            return PlainTextResponse(
+                content="PUBLIC_BASE_URL is not configured (set your ngrok HTTPS URL)",
+                status_code=503,
+            )
+
+        await request.app.state.redis.set_call_meta(
+            CallSid,
+            {
+                "tenant_id": tenant_id,
+                "start_time": datetime.now(timezone.utc).isoformat(),
+                "caller_phone": From,
+            },
+        )
+
+        if request.app.state.db:
+            try:
+                async with request.app.state.db.acquire() as conn:
+                    await create_call_record(conn, CallSid, tenant_id, From)
+            except Exception:
+                logger.exception(
+                    "failed to create call record",
+                    extra={"call_sid": CallSid, "tenant_id": tenant_id},
+                )
+
+        ws_url = public_base_to_ws_url(settings.public_base_url, "/ws/media")
+        twiml = handle_incoming_stream(ws_url, tenant_id, caller_phone=From)
+        logger.info(
+            "call session wired (twilio stream)",
+            extra={"call_sid": CallSid, "tenant_id": tenant_id, "ws_url": ws_url},
+        )
+        return PlainTextResponse(content=twiml, media_type="text/xml")
+
     if not settings.livekit_sip_domain:
         return PlainTextResponse(
             content="LIVEKIT_SIP_DOMAIN is not configured",
@@ -66,7 +103,7 @@ async def call_incoming(
         )
 
     room_manager: RoomManager = request.app.state.room_manager
-    room_name = await room_manager.create_call_room(CallSid, tenant_id)
+    room_name, dispatch_rule_id = await room_manager.create_call_room(CallSid, tenant_id)
 
     pipeline = CallPipeline(
         call_sid=CallSid,
@@ -82,12 +119,22 @@ async def call_incoming(
         elevenlabs_api_key=settings.elevenlabs_api_key,
         elevenlabs_voice_id=settings.elevenlabs_voice_id,
         elevenlabs_model_id=settings.elevenlabs_model_id,
+        tts_provider=settings.tts_provider,
+        deepgram_tts_model=settings.deepgram_tts_model,
     )
     pipeline_task = asyncio.create_task(pipeline.run())
+    try:
+        await pipeline.wait_ready(timeout=15.0)
+    except asyncio.TimeoutError:
+        logger.warning(
+            "voice bot not ready before TwiML; caller may hear silence initially",
+            extra={"call_sid": CallSid, "tenant_id": tenant_id},
+        )
 
     request.app.state.active_calls[CallSid] = {
         "tenant_id": tenant_id,
         "room_name": room_name,
+        "dispatch_rule_id": dispatch_rule_id,
         "pipeline": pipeline,
         "pipeline_task": pipeline_task,
     }
@@ -112,12 +159,36 @@ async def call_incoming(
             )
 
     logger.info(
-        "call session wired",
+        "call session wired (livekit sip)",
         extra={"call_sid": CallSid, "tenant_id": tenant_id, "room_name": room_name},
     )
 
-    twiml = handle_incoming(CallSid, tenant_id, settings.livekit_sip_domain)
+    twiml = handle_incoming(
+        CallSid,
+        tenant_id,
+        settings.livekit_sip_domain,
+        sip_username=settings.livekit_sip_username,
+        sip_password=settings.livekit_sip_password,
+    )
     return PlainTextResponse(content=twiml, media_type="text/xml")
+
+
+@app.websocket("/ws/media")
+async def twilio_media_ws(websocket: WebSocket):
+    """Twilio Media Streams WebSocket — caller audio in/out without LiveKit SIP."""
+    await websocket.accept()
+    pipeline = TwilioMediaPipeline(
+        websocket,
+        deepgram_api_key=settings.deepgram_api_key,
+        agent_brain_url=settings.agent_brain_url,
+        business_name=settings.business_name,
+        tts_provider=settings.tts_provider,
+        deepgram_tts_model=settings.deepgram_tts_model,
+        elevenlabs_api_key=settings.elevenlabs_api_key,
+        elevenlabs_voice_id=settings.elevenlabs_voice_id,
+        elevenlabs_model_id=settings.elevenlabs_model_id,
+    )
+    await pipeline.run()
 
 
 @app.post("/call/status")
@@ -149,7 +220,12 @@ async def call_status(
                     await asyncio.wait_for(pipeline_task, timeout=10.0)
                 except asyncio.TimeoutError:
                     pipeline_task.cancel()
-            await request.app.state.room_manager.close_room(active_call["room_name"])
+            room_name = active_call.get("room_name")
+            if room_name:
+                await request.app.state.room_manager.close_room(
+                    room_name,
+                    active_call.get("dispatch_rule_id", ""),
+                )
 
     return Response(status_code=204)
 

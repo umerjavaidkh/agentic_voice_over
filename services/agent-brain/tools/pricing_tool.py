@@ -13,6 +13,7 @@ async def run_pricing_tool(state: AgentState) -> dict:
         description=state.problem_description,
         category=state.service_category,
         tenant_id=state.tenant_id,
+        is_emergency=state.is_emergency,
     )
 
     return {
