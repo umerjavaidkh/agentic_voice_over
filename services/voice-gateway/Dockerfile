@@ -6,10 +6,13 @@ RUN apt-get update && apt-get install -y \
     libsndfile1 ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
-COPY requirements.txt .
+COPY services/voice-gateway/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY . .
+COPY shared /app/shared
+COPY services/voice-gateway /app
+
+ENV PYTHONPATH=/app
 
 RUN useradd -m -u 1001 appuser && chown -R appuser /app
 USER appuser
